@@ -243,10 +243,9 @@ class StatusCheckProvider:
         return hashlib.sha256(metadata_str.encode()).hexdigest()[:16]
 
     def _generate_file_uuid(self, file_path: str) -> str:
-        """Generate UUID for file"""
-        hasher = hashlib.sha256()
-        hasher.update(str(file_path).encode())
-        return hasher.hexdigest()[:8].upper()
+      """Generate UUID for file - uses format_uuid from format_helper"""
+      from format_helper import format_uuid
+      return format_uuid(file_path)
 
     def _update_file_metadata(self, metadata_provider: MetadataProvider, 
                              status_info: FileStatusInfo) -> None:

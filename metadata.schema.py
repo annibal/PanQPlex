@@ -6,6 +6,7 @@ Defines metadata keys, roles, and their properties
 
 from typing import Dict, Any
 from enum import Enum
+from typing import List
 
 # Configuration
 AUTOPREFIX_METADATA_KEY_NAMES = False

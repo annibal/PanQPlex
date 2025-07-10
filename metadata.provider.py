@@ -12,13 +12,12 @@ from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
-# Import metadata schemas and status enums
+# Import metadata schemas
 from metadata.schemas import (
     INTRINSIC_DATA, PQPCU, PQPISA, AUTOPREFIX_METADATA_KEY_NAMES,
     get_all_metadata_keys, can_edit_key, 
     get_blacklisted_keys, normalize_key, is_intrinsic_key
 )
-from status_enums import FileStatus, UploadState
 
 class MetadataOperation(Enum):
     DELETED = "D"
@@ -40,6 +39,21 @@ class MetadataProvider:
         
         # PanQPlex metadata prefix
         self.pqp_prefix = "PQP:"
+        
+        # FFmpeg metadata key mapping
+        self.ffmpeg_mapping = {
+            'title': 'title',
+            'description': 'comment',
+            'comment': 'comment',
+            'tags': 'keywords',
+            'keywords': 'keywords',
+            'category': 'genre',
+            'genre': 'genre',
+            'artist': 'artist',
+            'album': 'album',
+            'date': 'date',
+            'copyright': 'copyright'
+        }
 
     def _get_actual_key(self, key: str) -> str:
         """Get the actual key to use based on configuration"""
@@ -157,24 +171,6 @@ class MetadataProvider:
                     break
         
         return intrinsic
-
-    def get_file_status(self) -> FileStatus:
-        """Get file upload status"""
-        status_str = self.get_metadata("upload_state") or "undefined"
-        return FileStatus(status_str.lower())
-
-    def set_file_status(self, status: FileStatus, cardinal: str = "system") -> bool:
-        """Set file upload status"""
-        return self.set_metadata("upload_state", status.value, cardinal)
-
-    def get_upload_state(self) -> UploadState:
-        """Get upload state"""
-        state_str = self.get_metadata("upload_state") or "queued"
-        return UploadState(state_str.lower())
-
-    def set_upload_state(self, state: UploadState, cardinal: str = "system") -> bool:
-        """Set upload state"""
-        return self.set_metadata("upload_state", state.value, cardinal)
 
     def get_metadata(self, key: str) -> Optional[Any]:
         """Get specific metadata value"""
@@ -307,6 +303,12 @@ class MetadataProvider:
                 pqp_key = f"{self.pqp_prefix}{delta.key}"
                 if pqp_key in current_metadata:
                     keys_to_remove.append(pqp_key)
+                
+                # Check mapped key
+                if delta.key in self.ffmpeg_mapping:
+                    mapped_key = self.ffmpeg_mapping[delta.key]
+                    if mapped_key in current_metadata:
+                        keys_to_remove.append(mapped_key)
                 
                 for key_to_remove in keys_to_remove:
                     del current_metadata[key_to_remove]

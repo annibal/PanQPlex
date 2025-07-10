@@ -260,42 +260,45 @@ class ConfigProvider:
             print(f"Platform '{platform}' not supported yet")
 
     def _interactive_youtube_setup(self):
-        """Interactive YouTube setup"""
-        print("\n🔧 YouTube Setup")
-        print("=" * 50)
-        
-        account_name = input("Account name (default_account): ").strip() or "default_account"
-        api_key = input("API Key: ").strip()
-        client_id = input("Client ID: ").strip()
-        client_secret = input("Client Secret: ").strip()
-        default_channel = input("Default Channel ID: ").strip()
-        
-        try:
-            max_videos = int(input("Max videos per day (5): ").strip() or "5")
-        except ValueError:
-            max_videos = 5
-        
-        # Create account
-        account = YouTubeAccount(
-            name=account_name,
-            api_key=api_key,
-            client_id=client_id,
-            client_secret=client_secret,
-            default_channel=default_channel,
-            max_videos_per_day=max_videos,
-            enabled=True
-        )
-        
-        # Check if account exists
-        existing_account = self.get_youtube_account(account_name)
-        if existing_account:
-            self.update_youtube_account(account_name, account)
-            print(f"✅ Updated account '{account_name}'")
-        else:
-            self.add_youtube_account(account)
-            print(f"✅ Added account '{account_name}'")
-        
-        print("\n✅ YouTube setup completed!")
+    """Interactive YouTube setup"""
+    print("\n🔧 YouTube Setup")
+    print("=" * 50)
+    
+    account_name = input("Account name (default_account): ").strip() or "default_account"
+    client_id = input("Client ID: ").strip()
+    client_secret = input("Client Secret: ").strip()
+    default_channel = input("Default Channel ID: ").strip()
+    
+    # Note: We don't ask for API key - OAuth2 will generate tokens
+    api_key = "OAUTH2_TOKEN"  # Placeholder, actual tokens from OAuth flow
+    
+    try:
+        max_videos = int(input("Max videos per day (5): ").strip() or "5")
+    except ValueError:
+        max_videos = 5
+    
+    # Create account
+    account = YouTubeAccount(
+        name=account_name,
+        api_key=api_key,
+        client_id=client_id,
+        client_secret=client_secret,
+        default_channel=default_channel,
+        max_videos_per_day=max_videos,
+        enabled=True
+    )
+    
+    # Check if account exists
+    existing_account = self.get_youtube_account(account_name)
+    if existing_account:
+        self.update_youtube_account(account_name, account)
+        print(f"✅ Updated account '{account_name}'")
+    else:
+        self.add_youtube_account(account)
+        print(f"✅ Added account '{account_name}'")
+    
+    print("\n✅ YouTube setup completed!")
+    print("📌 Note: You'll be prompted to authenticate via OAuth2 on first use.")
 
     def validate_config(self) -> List[str]:
         """Validate configuration and return list of issues"""
