@@ -1,0 +1,30 @@
+     ╔════════╗
+  ╔══╝  LIST  ╚══╗
+  ║  OFF ALL THE ║
+  ╚══╗ STATUS ╔══╝
+     ╚═╦╦╦╦╦╦═╝
+┎──────╨╨╨╨╨╨───────────━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃🞌 ❓ │ UNDEFINED : The status of every file before PanQPlex add custom              ┃
+┖──────╥╥╥╥╥╥────┐    metadata to it. Its a symbolic concept rather than useful.     ┃
+┎──────╨╨╨╨╨╨────┴────────────────────────────────────────────────────────────────┲━━┛
+┃🞌 👀 │ ACKNOWLEDGED : Indicates that this file was prepared by PanQPlex, but     ┃
+┖──────╥╥╥╥╥╥───────┐    the default metadata remains unchanged.                  ┃
+┎──────╨╨╨╨╨╨───────┴─────────────────────────────────────────────────────────────┺━━┓
+┃🞌 ✍️ │ PROVISIONED : One or more metadata keys were edited, but this file has not   ┃
+┖──────╥╥╥╥╥╥──────┐    been marked as ready yet.                                    ┃
+┎──────╨╨╨╨╨╨──────┴────────────────────────────────────────────────────────────────┲┛
+┃🞌 ⭐ │ QUEUED_NEW : This file has the correct metadata and is approved for the     ┃
+┖──────╥╥╥╥╥╥─────┐    first upload, that will happen during the Sync.              ┃
+┎──────╨╨╨╨╨╨─────┴────────────────────────────────────────────────────────────────┲┛
+┃🞌 📤 │ UPLOADING : Either this file is currently being uploaded, or the PanQPlex  ┃
+┖──────╥╥╥╥╥╥────┐    was interrupted during the upload.                           ┃
+┎──────╨╨╨╨╨╨────┴────────────────────────────────────────────────────────────────┲┛
+┃🞌 🆗 │ FINISHED : The file was succesfully uploaded, and all its local metadata  ┃
+┖──────╥╥╥╥╥╥───┐    matches the uploaded version data.                           ┃
+┎──────╨╨╨╨╨╨───┴────────────────────────────────────────────────────────────────┲┛
+┃🞌 🔜 │ QUEUED_EDIT : The local metadata of this file has changed, and the Sync  ┃
+┖──────╥╥╥╥╥╥──────┐    will update the data in the uploaded version.            ┃
+┎──────╨╨╨╨╨╨──────┴─────────────────────────────────────────────────────────────┺━━┓
+┃🞌 ⚠️ │ HINDERED : Something wrong happened, in any of the steps, that PanQPlex     ┃
+┖──────╥╥╥╥╥╥───┒    could not resolve without human intervention.                  ┃
+       ╚╩╩╩╩╝   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
