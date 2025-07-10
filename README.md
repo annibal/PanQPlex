@@ -286,6 +286,21 @@ or update a single metadata value directly from the terminal:
 ➜ user @ ~/movies pqpvsf rec20250215.mov --set --delete Desc
 ```
 
+When you are satisfied with the information assigned via metadata to your files, proceed to mark them as `ready`.
+
+In order to prevent publishing files with wrong title, description, age restriction, notification settings or else, PanQPlex will upload only the ready files.
+
+To mark files as ready to upload, use `--ready` combined with `--set`:
+
+```bash
+➜ user @ ~/movies pqpvsf rec20250215.mov --set --ready
+
+# If you change your mind:
+➜ user @ ~/movies pqpvsf rec20250215.mov --set --not-ready
+```
+
+---
+
 > &nbsp; <br />
 > ⚠️ **Important**: <br />
 >
@@ -313,6 +328,6 @@ Made by `@N²BL` with love and dedication.
 
 `(A × N)² × B × L`  = `ANNIBAL`.
 
-A Huge Special Thanks to the `Long` support that `Mike` gave throughout the whole development of PanQPlex! [[]]'s
+A Huge Special Thanks to the `Long` support that `Mike` gave throughout the whole development of PanQPlex! [[]]'s.
 
-
+And a Special Thanks to SONNET, Claude for the collaboration in the development of PanQPlex.
