@@ -14,6 +14,8 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import logging
 
+from status_enums import UploadState
+
 try:
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
@@ -23,16 +25,6 @@ try:
     from google_auth_oauthlib.flow import InstalledAppFlow
 except ImportError:
     raise ImportError("Google API client libraries not installed. Run: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
-
-class YouTubeUploadState(Enum):
-    """Upload states for YouTube videos"""
-    QUEUED = "queued"
-    UPLOADING = "uploading"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    ERROR = "error"
-    CANCELLED = "cancelled"
-    RETRY = "retry"
 
 class YouTubePrivacyStatus(Enum):
     """YouTube privacy statuses"""
@@ -88,7 +80,7 @@ class YouTubeUploadProgress:
     bytes_uploaded: int = 0
     total_bytes: int = 0
     progress_percent: float = 0.0
-    state: YouTubeUploadState = YouTubeUploadState.QUEUED
+    state: UploadState = UploadState.QUEUED
     video_id: Optional[str] = None
     upload_url: Optional[str] = None
     error_message: Optional[str] = None
@@ -370,7 +362,7 @@ class YouTubeProvider:
         is_valid, message = self.validate_file(file_path)
         if not is_valid:
             progress = YouTubeUploadProgress(
-                state=YouTubeUploadState.ERROR,
+                state=UploadState.ERROR,
                 error_message=message
             )
             return progress
@@ -378,7 +370,7 @@ class YouTubeProvider:
         # Check quota
         if not self._check_quota('video_insert'):
             progress = YouTubeUploadProgress(
-                state=YouTubeUploadState.ERROR,
+                state=UploadState.ERROR,
                 error_message="Daily quota exceeded"
             )
             return progress
@@ -390,7 +382,7 @@ class YouTubeProvider:
         upload_id = self._generate_upload_id(file_path)
         progress = YouTubeUploadProgress(
             total_bytes=file_size,
-            state=YouTubeUploadState.UPLOADING,
+            state=UploadState.UPLOADING,
             last_update=time.time()
         )
         self.active_uploads[upload_id] = progress
@@ -422,23 +414,23 @@ class YouTubeProvider:
             if response:
                 progress.video_id = response['id']
                 progress.upload_url = f"https://www.youtube.com/watch?v={response['id']}"
-                progress.state = YouTubeUploadState.COMPLETED
+                progress.state = UploadState.COMPLETED
                 progress.progress_percent = 100.0
                 self._consume_quota('video_insert')
                 self.logger.info(f"Video uploaded successfully: {response['id']}")
             else:
-                progress.state = YouTubeUploadState.ERROR
+                progress.state = UploadState.ERROR
                 progress.error_message = "Upload failed without error response"
             
         except HttpError as e:
             error_msg = f"HTTP error during upload: {e}"
-            progress.state = YouTubeUploadState.ERROR
+            progress.state = UploadState.ERROR
             progress.error_message = error_msg
             self.logger.error(error_msg)
             
         except Exception as e:
             error_msg = f"Unexpected error during upload: {e}"
-            progress.state = YouTubeUploadState.ERROR
+            progress.state = UploadState.ERROR
             progress.error_message = error_msg
             self.logger.error(error_msg)
         
@@ -635,7 +627,7 @@ class YouTubeProvider:
         """Cancel active upload"""
         if upload_id in self.active_uploads:
             progress = self.active_uploads[upload_id]
-            progress.state = YouTubeUploadState.CANCELLED
+            progress.state = UploadState.CANCELLED
             progress.last_update = time.time()
             return True
         return False

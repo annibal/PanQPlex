@@ -7,6 +7,8 @@ Handles all formatting operations for display
 import hashlib
 from typing import Any
 
+from status_enums import FileStatus, UploadState, get_status_display, get_upload_display
+
 def format_duration(seconds: float) -> str:
     """Format duration as MM:SS or H:MM:SS"""
     if not seconds:
@@ -43,17 +45,36 @@ def format_progress(progress: Any) -> str:
     except (ValueError, TypeError):
         return "❓   ?%"
 
+def format_file_status(status: FileStatus) -> str:
+    """Format file status with emoji"""
+    display = get_status_display(status)
+    return f"{display['emoji']} {display['label']}"
+
+def format_upload_state(state: UploadState, progress: int = 0) -> str:
+    """Format upload state with progress"""
+    display = get_upload_display(state, progress)
+    return display["formatted"]
+
 def format_upload_status(status: str) -> str:
-    """Format upload status with emoji"""
-    status_map = {
-        'queued': '🔜   0%',
-        'uploading': '📤  ?%',
-        'completed': '✅ 100%',
-        'error': '❌ ERR',
-        'paused': '⏸️ PAUSE',
-        'changed': '🔄   0%'
-    }
-    return status_map.get(status, f"❓ {status}")
+    """Format upload status with emoji (legacy)"""
+    # Convert string to enum for consistency
+    try:
+        if status in ['queued', 'queued_new']:
+            return format_upload_state(UploadState.QUEUED)
+        elif status == 'uploading':
+            return format_upload_state(UploadState.UPLOADING)
+        elif status in ['completed', 'finished']:
+            return format_upload_state(UploadState.COMPLETED)
+        elif status == 'error':
+            return format_upload_state(UploadState.ERROR)
+        elif status == 'paused':
+            return format_upload_state(UploadState.PAUSED)
+        elif status in ['changed', 'queued_edit']:
+            return format_upload_state(UploadState.RETRY)
+        else:
+            return f"❓ {status}"
+    except Exception:
+        return f"❓ {status}"
 
 def format_uuid(file_path: str) -> str:
     """Generate and format UUID hash for file"""
@@ -78,7 +99,7 @@ def format_metadata_value(key: str, value: Any) -> str:
         'length': format_duration,
         'size': format_file_size,
         'upload_progress': format_progress,
-        'upload_state': format_upload_status,
+        'upload_state': lambda x: format_upload_status(str(x)),
         'last_sync': format_time_ago,
         'file_uuid': format_uuid
     }

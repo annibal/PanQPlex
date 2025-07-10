@@ -11,6 +11,7 @@ from metadata.schemas import get_all_metadata_keys
 from config.provider import ConfigProvider
 from shell_helper import get_video_files_in_pwd, get_file_size, get_filename
 from format_helper import format_metadata_value, format_uuid
+from status_enums import FileStatus, format_status, format_upload_state
 
 def print_table_list(files: Optional[List[str]] = None, 
                     columns: Optional[List[str]] = None) -> None:
@@ -55,6 +56,51 @@ def print_table_list(files: Optional[List[str]] = None,
     for row_data in table_data:
         _print_row(row_data, columns, col_widths)
 
+def print_full_list(files: Optional[List[str]] = None) -> None:
+    """Print files in detailed format"""
+    
+    if files is None:
+        files = _get_all_files_in_pwd()
+    
+    if not files:
+        print("No files found")
+        return
+    
+    for file_path in files:
+        try:
+            _print_file_details(file_path)
+        except Exception as e:
+            print(f"Error processing {file_path}: {e}")
+
+def _print_file_details(file_path: str) -> None:
+    """Print detailed information for a single file"""
+    metadata_provider = MetadataProvider(file_path)
+    
+    filename = get_filename(file_path)
+    file_uuid = format_uuid(file_path)
+    
+    # Get status and format it
+    status = metadata_provider.get_file_status()
+    status_display = format_status(status)
+    
+    # Get basic metadata
+    title = metadata_provider.get_metadata("title") or "Untitled"
+    description = metadata_provider.get_metadata("description") or "␀"
+    tags = metadata_provider.get_metadata("tags") or "␀"
+    
+    duration = metadata_provider.get_duration_seconds()
+    file_size = get_file_size(file_path)
+    
+    last_sync = metadata_provider.get_metadata("last_sync") or "never"
+    
+    print(f"\n▶ {filename}")
+    print(f"  🆔 File ID: {file_uuid}     | Status: {status_display}")
+    print(f"  🎞️ Length: {format_metadata_value('duration', duration)}     | ⚖️ Size: {format_metadata_value('size', file_size)}")
+    print(f"  🗓️ Last Update: {format_metadata_value('last_sync', last_sync)}")
+    print(f"  📜 Title: {title}")
+    print(f"  📖 Desc: {description}")
+    print(f"  🏷️ {tags}")
+
 def _get_all_files_in_pwd() -> List[str]:
     """Get all video files in current directory"""
     return get_video_files_in_pwd()
@@ -86,14 +132,15 @@ def _get_file_row_data(file_path: str, columns: List[str]) -> Dict[str, str]:
             value = metadata_provider.get_duration_seconds()
         elif col == "size":
             value = get_file_size(file_path)
+        elif col == "upload_state":
+            status = metadata_provider.get_file_status()
+            value = format_status(status)
         else:
             value = metadata_provider.get_metadata(col)
         
         row_data[col] = format_metadata_value(col, value)
     
     return row_data
-
-
 
 def _calculate_column_widths(table_data: List[Dict[str, str]], 
                            columns: List[str]) -> Dict[str, int]:
