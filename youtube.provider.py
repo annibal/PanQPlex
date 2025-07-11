@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PanQPlex YouTube Provider
-Complete YouTube API integration for video upload and management
+YouTube API integration for video upload and management using API keys
 """
 
 import json
@@ -14,17 +14,22 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import logging
 
-from status_enums import UploadState
-
 try:
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
     from googleapiclient.http import MediaFileUpload, MediaUploadProgress
-    from google.auth.transport.requests import Request
-    from google.oauth2.credentials import Credentials
-    from google_auth_oauthlib.flow import InstalledAppFlow
 except ImportError:
-    raise ImportError("Google API client libraries not installed. Run: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
+    raise ImportError("Google API client libraries not installed. Run: pip install google-api-python-client")
+
+class YouTubeUploadState(Enum):
+    """Upload states for YouTube videos"""
+    QUEUED = "queued"
+    UPLOADING = "uploading"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    ERROR = "error"
+    CANCELLED = "cancelled"
+    RETRY = "retry"
 
 class YouTubePrivacyStatus(Enum):
     """YouTube privacy statuses"""
@@ -80,7 +85,7 @@ class YouTubeUploadProgress:
     bytes_uploaded: int = 0
     total_bytes: int = 0
     progress_percent: float = 0.0
-    state: UploadState = UploadState.QUEUED
+    state: YouTubeUploadState = YouTubeUploadState.QUEUED
     video_id: Optional[str] = None
     upload_url: Optional[str] = None
     error_message: Optional[str] = None
@@ -91,14 +96,13 @@ class YouTubeUploadProgress:
 class YouTubeAccount:
     """YouTube account configuration"""
     name: str
-    client_id: str
-    client_secret: str
-    refresh_token: Optional[str] = None
-    access_token: Optional[str] = None
-    token_expiry: Optional[float] = None
+    api_key: str
     channel_id: Optional[str] = None
     max_uploads_per_day: int = 6
     enabled: bool = True
+    # Remove OAuth fields - not needed with API key
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
 
 @dataclass
 class YouTubeQuota:
@@ -113,13 +117,7 @@ class YouTubeQuota:
             self.operations = {}
 
 class YouTubeProvider:
-    """Complete YouTube API provider for PanQPlex"""
-    
-    SCOPES = [
-        'https://www.googleapis.com/auth/youtube.upload',
-        'https://www.googleapis.com/auth/youtube',
-        'https://www.googleapis.com/auth/youtube.force-ssl'
-    ]
+    """YouTube API provider for PanQPlex using API keys"""
     
     API_SERVICE_NAME = 'youtube'
     API_VERSION = 'v3'
@@ -151,7 +149,6 @@ class YouTubeProvider:
         self.account = account
         self.credentials_path = Path(credentials_path) if credentials_path else None
         self.service = None
-        self.credentials = None
         self.quota = YouTubeQuota()
         self.logger = self._setup_logger()
         
@@ -177,105 +174,18 @@ class YouTubeProvider:
         return logger
 
     def _initialize_service(self) -> None:
-        """Initialize YouTube API service"""
+        """Initialize YouTube API service with API key"""
         try:
-            self.credentials = self._get_authenticated_credentials()
-            if self.credentials:
-                self.service = build(
-                    self.API_SERVICE_NAME,
-                    self.API_VERSION,
-                    credentials=self.credentials
-                )
-                self.logger.info(f"YouTube service initialized for account: {self.account.name}")
-            else:
-                self.logger.error("Failed to get authenticated credentials")
+            # Build service using API key
+            self.service = build(
+                self.API_SERVICE_NAME,
+                self.API_VERSION,
+                developerKey=self.account.api_key
+            )
+            self.logger.info(f"YouTube service initialized for account: {self.account.name}")
         except Exception as e:
             self.logger.error(f"Failed to initialize YouTube service: {e}")
             raise
-
-    def _get_authenticated_credentials(self) -> Optional[Credentials]:
-        """Get authenticated Google credentials"""
-        creds = None
-        
-        # Try to load existing credentials
-        if self.credentials_path and self.credentials_path.exists():
-            try:
-                creds = Credentials.from_authorized_user_file(
-                    str(self.credentials_path), self.SCOPES
-                )
-            except Exception as e:
-                self.logger.warning(f"Failed to load credentials from file: {e}")
-        
-        # Try to use account stored tokens
-        if not creds and self.account.refresh_token:
-            try:
-                creds = Credentials(
-                    token=self.account.access_token,
-                    refresh_token=self.account.refresh_token,
-                    token_uri="https://oauth2.googleapis.com/token",
-                    client_id=self.account.client_id,
-                    client_secret=self.account.client_secret,
-                    scopes=self.SCOPES
-                )
-            except Exception as e:
-                self.logger.warning(f"Failed to create credentials from account: {e}")
-        
-        # Refresh if credentials are expired
-        if creds and creds.expired and creds.refresh_token:
-            try:
-                creds.refresh(Request())
-                self._save_credentials(creds)
-            except Exception as e:
-                self.logger.error(f"Failed to refresh credentials: {e}")
-                return None
-        
-        # If no valid credentials, start OAuth flow
-        if not creds or not creds.valid:
-            creds = self._perform_oauth_flow()
-        
-        return creds
-
-    def _perform_oauth_flow(self) -> Optional[Credentials]:
-        """Perform OAuth2 authentication flow"""
-        try:
-            # Create client configuration
-            client_config = {
-                "installed": {
-                    "client_id": self.account.client_id,
-                    "client_secret": self.account.client_secret,
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                    "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"]
-                }
-            }
-            
-            flow = InstalledAppFlow.from_client_config(client_config, self.SCOPES)
-            creds = flow.run_local_server(port=0)
-            
-            # Save credentials
-            self._save_credentials(creds)
-            
-            self.logger.info("OAuth authentication completed successfully")
-            return creds
-            
-        except Exception as e:
-            self.logger.error(f"OAuth flow failed: {e}")
-            return None
-
-    def _save_credentials(self, creds: Credentials) -> None:
-        """Save credentials to file and update account"""
-        if self.credentials_path:
-            try:
-                with open(self.credentials_path, 'w') as token_file:
-                    token_file.write(creds.to_json())
-            except Exception as e:
-                self.logger.warning(f"Failed to save credentials to file: {e}")
-        
-        # Update account with new tokens
-        self.account.access_token = creds.token
-        self.account.refresh_token = creds.refresh_token
-        if creds.expiry:
-            self.account.token_expiry = creds.expiry.timestamp()
 
     def _check_quota(self, operation: str) -> bool:
         """Check if operation is within quota limits"""
@@ -330,7 +240,11 @@ class YouTubeProvider:
         return True, "Valid"
 
     def get_channel_info(self) -> Optional[Dict[str, Any]]:
-        """Get authenticated user's channel information"""
+        """Get channel information by channel ID"""
+        if not self.account.channel_id:
+            self.logger.error("No channel ID configured")
+            return None
+            
         if not self._check_quota('channel_list'):
             self.logger.error("Quota exceeded for channel_list operation")
             return None
@@ -338,15 +252,13 @@ class YouTubeProvider:
         try:
             request = self.service.channels().list(
                 part="snippet,contentDetails,statistics",
-                mine=True
+                id=self.account.channel_id
             )
             response = request.execute()
             self._consume_quota('channel_list')
             
             if response.get('items'):
-                channel = response['items'][0]
-                self.account.channel_id = channel['id']
-                return channel
+                return response['items'][0]
             
             return None
             
@@ -356,13 +268,13 @@ class YouTubeProvider:
 
     def upload_video(self, file_path: str, metadata: YouTubeVideoMetadata,
                     progress_callback: Optional[callable] = None) -> YouTubeUploadProgress:
-        """Upload video to YouTube with resumable upload"""
+        """Upload video to YouTube"""
         
         # Validate file
         is_valid, message = self.validate_file(file_path)
         if not is_valid:
             progress = YouTubeUploadProgress(
-                state=UploadState.ERROR,
+                state=YouTubeUploadState.ERROR,
                 error_message=message
             )
             return progress
@@ -370,7 +282,7 @@ class YouTubeProvider:
         # Check quota
         if not self._check_quota('video_insert'):
             progress = YouTubeUploadProgress(
-                state=UploadState.ERROR,
+                state=YouTubeUploadState.ERROR,
                 error_message="Daily quota exceeded"
             )
             return progress
@@ -382,7 +294,7 @@ class YouTubeProvider:
         upload_id = self._generate_upload_id(file_path)
         progress = YouTubeUploadProgress(
             total_bytes=file_size,
-            state=UploadState.UPLOADING,
+            state=YouTubeUploadState.UPLOADING,
             last_update=time.time()
         )
         self.active_uploads[upload_id] = progress
@@ -414,23 +326,23 @@ class YouTubeProvider:
             if response:
                 progress.video_id = response['id']
                 progress.upload_url = f"https://www.youtube.com/watch?v={response['id']}"
-                progress.state = UploadState.COMPLETED
+                progress.state = YouTubeUploadState.COMPLETED
                 progress.progress_percent = 100.0
                 self._consume_quota('video_insert')
                 self.logger.info(f"Video uploaded successfully: {response['id']}")
             else:
-                progress.state = UploadState.ERROR
+                progress.state = YouTubeUploadState.ERROR
                 progress.error_message = "Upload failed without error response"
             
         except HttpError as e:
             error_msg = f"HTTP error during upload: {e}"
-            progress.state = UploadState.ERROR
+            progress.state = YouTubeUploadState.ERROR
             progress.error_message = error_msg
             self.logger.error(error_msg)
             
         except Exception as e:
             error_msg = f"Unexpected error during upload: {e}"
-            progress.state = UploadState.ERROR
+            progress.state = YouTubeUploadState.ERROR
             progress.error_message = error_msg
             self.logger.error(error_msg)
         
@@ -627,7 +539,7 @@ class YouTubeProvider:
         """Cancel active upload"""
         if upload_id in self.active_uploads:
             progress = self.active_uploads[upload_id]
-            progress.state = UploadState.CANCELLED
+            progress.state = YouTubeUploadState.CANCELLED
             progress.last_update = time.time()
             return True
         return False
@@ -638,20 +550,39 @@ class YouTubeProvider:
 
     def is_authenticated(self) -> bool:
         """Check if provider is properly authenticated"""
-        return self.service is not None and self.credentials is not None and self.credentials.valid
+        # With API key, we're always "authenticated" if service exists
+        return self.service is not None and self.account.api_key is not None
 
     def test_connection(self) -> Tuple[bool, str]:
         """Test YouTube API connection"""
         try:
             if not self.is_authenticated():
-                return False, "Not authenticated"
+                return False, "Not authenticated - missing API key"
             
-            channel_info = self.get_channel_info()
-            if channel_info:
-                return True, f"Connected to channel: {channel_info['snippet']['title']}"
+            # Try a simple API call to verify the key works
+            if self.account.channel_id:
+                channel_info = self.get_channel_info()
+                if channel_info:
+                    return True, f"Connected to channel: {channel_info['snippet']['title']}"
+                else:
+                    return False, "Failed to retrieve channel information"
             else:
-                return False, "Failed to retrieve channel information"
-                
+                # Just try to list video categories as a test
+                request = self.service.videoCategories().list(
+                    part="snippet",
+                    regionCode="US"
+                )
+                response = request.execute()
+                if response.get('items'):
+                    return True, "API key is valid"
+                else:
+                    return False, "API key test failed"
+                    
+        except HttpError as e:
+            if e.resp.status == 403:
+                return False, "API key is invalid or lacks required permissions"
+            else:
+                return False, f"Connection test failed: {e}"
         except Exception as e:
             return False, f"Connection test failed: {e}"
 
@@ -667,5 +598,4 @@ class YouTubeProvider:
         """Clean up resources"""
         self.active_uploads.clear()
         self.service = None
-        self.credentials = None
         self.logger.info("YouTube provider closed")
