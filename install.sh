@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uoe pipefail
 
 # clickable links in modern terminals (OSC-8)
 echolink(){ echo -e "\e]8;;$1\a$2\e]8;;\a"; }
-say(){ echo -e "$*"; }
-die(){ echo -e "ERROR: $*" >&2; exit 1; }
+say(){ echo -e "⟫ $*"; }
+die(){ echo -e "⟫ ERROR: $*" >&2; exit 1; }
+
+say "PanQPlex installation";
 
 # --- repo root sanity
 need=(pyproject.toml src/n2bl/cli.py requirements.txt)
@@ -14,26 +16,72 @@ missing=(); for f in "${need[@]}"; do [[ -f "$f" ]] || missing+=("$f"); done
 say "Installing PanQPlex\nMODE: DEV\nPATH: $(pwd)\n"
 
 # --- prerequisites
-sudo apt update -y >/dev/null || true
-sudo apt install -y python3-venv jq >/dev/null
+qtdMissingDeps=0;
+logNameStr=" "
+logArgsStr=" "
+logStr=" "
+if [[ !$(command -v jq) ]]; then
+  qtdMissingDeps = $qtdMissingDeps + 1
+  logNameStr="$logNameStr '$(echolink "https://stedolan.github.io/jq/download/" "jq (jqlang)")'";
+  logArgsStr="$logArgsStr jq";
+fi
+if [[ !$(command -v python3-venv) ]]; then
+  qtdMissingDeps = $(($qtdMissingDeps + 1))
+  logNameStr="$logNameStr '$(echolink "https://www.python.org/" "python3-venv")'";
+  logArgsStr="$logArgsStr python3-venv";
+fi
+
+
+
+if [[ $isMissingDeps ]]; then
+  logStr="The program"
+  [[ $isMissingDeps == true ]] && logStr="${logStr}s";
+  logStr="${logStr} $( echo [[ $isMissingDeps == true ]] && "are" || "is" ) required.\n";
+  logStr="${logStr}To install $( [[ $isMissingDeps == true ]] && "them" || "it" ), "
+  logStr="${logStr}try running this command:\n  sudo apt install $logArgsStr\n\n";
+
+  die $logStr;
+fi
 
 # --- python env
+say "setting up python virtual environment";
 [[ -d .venv ]] || python3 -m venv .venv
 # shellcheck disable=SC1091
 source .venv/bin/activate
+
+say "installation script will install more scripts to install another script";
+say "running 'pip install setuptools wheel':";
 pip install -q -U pip setuptools wheel
 pip install -q -e .
 
+say "setting up credentials";
 # --- config/creds paths
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/n2bl"
 mkdir -p "$CONF"
 CREDS="$CONF/client_secret.json"
-TOKEN="$CONF/token.pickle"
+say "   "
+say "  This is the credentials file path: '$CREDS'";
+say "  You'll have to put your project's api keys there";
+say "  otherwise this script can't do the OAuth.";
+say "   "
 
+TOKEN="$CONF/token.pickle"
+say "   "
+say "  After your first successful OAuth, the token file will store the login data.";
+say "  If the token file isn't there, or it's data has expired, PanQPlex will ask you for OAuth again.";
+say "   "
+
+say "checking credentials data";
 # --- write template if missing/invalid
 valid_json(){ jq -e '.installed.client_id and .installed.client_secret and (.installed.redirect_uris|length>0)' "$1" >/dev/null 2>&1; }
 
 if [[ ! -s "$CREDS" ]] || ! valid_json "$CREDS"; then
+  if [[ ! -s "$CREDS" ]]; then
+    say "Creating credentials file '$CREDS'";
+  fi;
+  if ! valid_json "$CREDS"; then
+    say "Invalid content in '$CREDS'. Replacing with template.";
+  fi
   cat >"$CREDS" <<'JSON'
 {
   "installed": {
@@ -52,7 +100,7 @@ fi
 # --- if secrets missing, print your 10-step guide (with links)
 need_vals=$(jq -r '.installed | [.client_id,.project_id,.client_secret] | map(length>0) | all' "$CREDS") || need_vals=false
 if [[ "$need_vals" != true ]]; then
-  say "\nOAuth setup required. Follow these steps:\n"
+  say "\n\nOAuth setup required. Follow these steps:\n"
   say " 1. Open $(echolink "https://console.cloud.google.com" "Google Cloud Console") and log in."
   say " 2. Create/select a GCP project."
   say " 3. Go to $(echolink "https://console.cloud.google.com/apis/library" "API Library"); search for “YouTube Data API v3”."
@@ -70,11 +118,12 @@ if [[ "$need_vals" != true ]]; then
 fi
 
 # --- force fresh OAuth (safe)
+say "removing pickle to refresh credentials";
 rm -f "$TOKEN"
 
 # --- smoke test
 if ! .venv/bin/pqp -h >/dev/null 2>&1; then
-  die "pqp entry point missing; check pyproject.toml [project.scripts] pqp = \"n2bl.cli:main\" then: pip install -e ."
+  die "PanQPlex entry point missing; check pyproject.toml [project.scripts] pqp = \"n2bl.cli:main\" then: pip install -e ."
 fi
 
 say "OK.\nNext:\n  source .venv/bin/activate\n  pqp -h\n  pqp scan\n"
